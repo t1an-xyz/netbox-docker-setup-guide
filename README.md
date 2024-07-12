@@ -8,45 +8,43 @@
 
 ```Dockerfile
 FROM netboxcommunity/netbox:latest
+
 COPY ./plugin_requirements.txt /opt/netbox/
 COPY plugins/ /opt/netbox/plugins/
-RUN /opt/netbox/venv/bin/pip install --no-warn-script-location -r /opt/netbox/plugin_requirements.txt
+RUN /opt/netbox/venv/bin/pip install  --no-warn-script-location -r /opt/netbox/plugin_requirements.txt
 
 # These lines are only required if your plugin has its own static files.
 COPY configuration/configuration.py /etc/netbox/config/configuration.py
 COPY configuration/plugins.py /etc/netbox/config/plugins.py
 RUN SECRET_KEY="dummydummydummydummydummydummydummydummydummydummy" /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py collectstatic --no-input
+
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod -R ugo+wx /opt/netbox/venv/lib/python3.11/site-packages/
-
 ENTRYPOINT [ "/entrypoint.sh" ]
-CMD [ "/opt/netbox/launch-netbox.sh" ]
+CMD [ "/opt/netbox/docker-entrypoint.sh", "/opt/netbox/launch-netbox.sh" ]
 ```
 
 5. Copy the following into `docker-compose.override.yml`
 
 ```YAML
 services:
-	netbox:
-		image: netbox:latest-plugins
-		ports:
-			- 8000:8080
-		build:
-			context: .
-			dockerfile: Dockerfile-Plugins
-	netbox-worker:
-		image: netbox:latest-plugins
-		build:
-			context: .
-			dockerfile: Dockerfile-Plugins
-	netbox-housekeeping:
-		image: netbox:latest-plugins
-		build:
-			context: .
-			dockerfile: Dockerfile-Plugins
-	postgres:
-		ports:
-			- 5432:5432
+  netbox:
+    image: netbox:latest-plugins
+    ports:
+      - 8000:8080
+    build:
+      context: .
+      dockerfile: Dockerfile-Plugins
+  netbox-worker:
+    image: netbox:latest-plugins
+    build:
+      context: .
+      dockerfile: Dockerfile-Plugins
+  netbox-housekeeping:
+    image: netbox:latest-plugins
+    build:
+      context: .
+      dockerfile: Dockerfile-Plugins
 ```
 
 6. Copy the following into `entrypoint.sh`
@@ -71,12 +69,11 @@ from plugins import PLUGINS
 
 # Run makemigrations for each plugin
 for plugin in PLUGINS:
-	call(['/opt/netbox/venv/bin/python', '/opt/netbox/netbox/manage.py', 'makemigrations', plugin])
+    call(['/opt/netbox/venv/bin/python', '/opt/netbox/netbox/manage.py', 'makemigrations', plugin])
 
 # Clean up by removing the directory from sys.path if necessary
 sys.path.remove(plugins_dir)
 EOF
-
 /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py migrate
 
 /opt/netbox/venv/bin/python <<EOF
@@ -92,13 +89,11 @@ from plugins import PLUGINS
 
 # Run makemigrations for each plugin
 for plugin in PLUGINS:
-	call(['/opt/netbox/venv/bin/python', '/opt/netbox/netbox/manage.py', 'reindex', plugin])
+    call(['/opt/netbox/venv/bin/python', '/opt/netbox/netbox/manage.py', 'reindex', plugin])
 
 # Clean up by removing the directory from sys.path if necessary
 sys.path.remove(plugins_dir)
 EOF
-
-/opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py reindex
 
 # Execute the main command (e.g., start NetBox)
 exec "$@"
